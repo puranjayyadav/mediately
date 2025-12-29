@@ -397,36 +397,78 @@ elif page == "🎯 Conversion Rates":
     # Funnel visualization
     st.subheader("📊 Conversion Funnel")
     
+    # Get impressions from program_performance
+    total_impressions = data['program_performance']['Impressions'].sum() if 'Impressions' in data['program_performance'].columns else 0
+    
     funnel_data = pd.DataFrame({
         'Stage': ['Impressions', 'Link Clicks', 'Landing Page Views', 'RFI Submits'],
         'Count': [
-            data['program_performance']['Impressions'].sum(),
+            total_impressions,
             total_clicks,
             total_lpv,
             total_submits
         ]
     })
     
-    funnel_data['Percentage'] = (funnel_data['Count'] / funnel_data['Count'].iloc[0] * 100).round(2)
+    # Calculate percentages relative to initial stage (Impressions)
+    if funnel_data['Count'].iloc[0] > 0:
+        funnel_data['Percentage'] = (funnel_data['Count'] / funnel_data['Count'].iloc[0] * 100).round(2)
+    else:
+        funnel_data['Percentage'] = 0
     
-    # Create funnel chart using bar chart with custom styling
+    # Calculate conversion rates between stages
+    conversion_rates = [0.0]  # First stage has no previous stage
+    for i in range(1, len(funnel_data)):
+        if funnel_data['Count'].iloc[i-1] > 0:
+            rate = (funnel_data['Count'].iloc[i] / funnel_data['Count'].iloc[i-1] * 100).round(2)
+        else:
+            rate = 0.0
+        conversion_rates.append(rate)
+    funnel_data['Conversion_Rate'] = conversion_rates
+    
+    # Create custom text labels showing count and percentage
+    funnel_text = []
+    for idx, row in funnel_data.iterrows():
+        if idx == 0:
+            text = f"{row['Count']:,.0f}<br>({row['Percentage']:.1f}%)"
+        else:
+            text = f"{row['Count']:,.0f}<br>({row['Percentage']:.1f}% of initial)<br>{row['Conversion_Rate']:.2f}% conversion"
+        funnel_text.append(text)
+    
+    # Create funnel chart with custom text
     fig_funnel = go.Figure(go.Funnel(
         y=funnel_data['Stage'],
         x=funnel_data['Count'],
+        text=funnel_text,
         textposition="inside",
-        textinfo="value+percent initial",
+        textfont=dict(size=12, color="white"),
         marker=dict(
             color=funnel_data['Percentage'],
             colorscale='Viridis',
-            line=dict(width=4, color="white")
+            line=dict(width=4, color="white"),
+            showscale=True,
+            colorbar=dict(title="% of Initial")
         )
     ))
     fig_funnel.update_layout(
-        title='Conversion Funnel',
-        height=400,
-        showlegend=False
+        title='Conversion Funnel - Shows progression from Impressions to Submissions',
+        height=500,
+        showlegend=False,
+        font=dict(size=12)
     )
     st.plotly_chart(fig_funnel, use_container_width=True)
+    
+    # Display conversion rates table
+    st.markdown("**Conversion Rates Between Stages:**")
+    conversion_table = pd.DataFrame({
+        'From Stage': ['Impressions → Clicks', 'Clicks → Landing Page Views', 'Landing Page Views → Submits'],
+        'Conversion Rate': [
+            f"{funnel_data.loc[1, 'Conversion_Rate']:.2f}%",
+            f"{funnel_data.loc[2, 'Conversion_Rate']:.2f}%",
+            f"{funnel_data.loc[3, 'Conversion_Rate']:.2f}%"
+        ]
+    })
+    st.dataframe(conversion_table, use_container_width=True, hide_index=True)
 
 # ============================================================================
 # PROGRAM PERFORMANCE
