@@ -365,16 +365,35 @@ plt.close()
 print("\n=== PRESCRIPTIVE ANALYSIS 3: ROI Optimization Model ===")
 
 # Calculate expected ROI for different budget allocations
+# Include diminishing returns: CPL increases as budget scales beyond optimal
 budget_levels = [0.8, 0.9, 1.0, 1.1, 1.2]  # 80% to 120% of current budget
 roi_scenarios = []
 
+# Base CPL from optimal balanced allocation
+base_cpl = program_roi_clean['CPL'].mean()
+
 for budget_multiplier in budget_levels:
     scenario_budget = program_roi_clean.copy()
+    
+    # Apply diminishing returns: CPL increases as budget scales beyond 1.0
+    # Formula: CPL_multiplier = 1 + (budget_multiplier - 1) * diminishing_factor
+    # This means:
+    # - At 0.8x budget: CPL is 2% lower (more efficient at lower scale)
+    # - At 1.0x budget: CPL is base (optimal efficiency)
+    # - At 1.2x budget: CPL is 4% higher (less efficient at higher scale)
+    diminishing_factor = 0.2  # 20% CPL increase per 1.0 budget multiplier increase
+    cpl_multiplier = 1 + (budget_multiplier - 1.0) * diminishing_factor
+    
+    # Adjust CPL based on diminishing returns
+    scenario_budget['Adjusted_CPL'] = scenario_budget['CPL'] * cpl_multiplier
+    
     scenario_budget['Allocated_Budget'] = (
         scenario_budget['Optimal_Budget_Balanced'] * budget_multiplier
     )
+    
+    # Calculate leads with adjusted CPL (accounting for diminishing returns)
     scenario_budget['Predicted_Leads'] = (
-        scenario_budget['Allocated_Budget'] / scenario_budget['CPL']
+        scenario_budget['Allocated_Budget'] / scenario_budget['Adjusted_CPL']
     )
     
     total_budget = scenario_budget['Allocated_Budget'].sum()
