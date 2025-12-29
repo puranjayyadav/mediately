@@ -426,37 +426,84 @@ elif page == "🎯 Conversion Rates":
         conversion_rates.append(rate)
     funnel_data['Conversion_Rate'] = conversion_rates
     
-    # Create custom text labels showing count and percentage
+    # Create a custom funnel visualization using horizontal bar chart
+    # This ensures all stages are clearly visible regardless of scale differences
+    funnel_data_display = funnel_data.copy()
+    
+    # Create custom text labels with better formatting
     funnel_text = []
-    for idx, row in funnel_data.iterrows():
-        if idx == 0:
-            text = f"{row['Count']:,.0f}<br>({row['Percentage']:.1f}%)"
+    colors_list = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # Distinct colors for each stage
+    
+    for idx, row in funnel_data_display.iterrows():
+        if idx == 0:  # Impressions stage
+            text = f"<b>{row['Count']:,.0f}</b><br>({row['Percentage']:.1f}%)"
         else:
-            text = f"{row['Count']:,.0f}<br>({row['Percentage']:.1f}% of initial)<br>{row['Conversion_Rate']:.2f}% conversion"
+            text = f"<b>{row['Count']:,.0f}</b><br>({row['Percentage']:.1f}% of initial)<br>↓ {row['Conversion_Rate']:.2f}% conversion"
         funnel_text.append(text)
     
-    # Create funnel chart with custom text
-    fig_funnel = go.Figure(go.Funnel(
-        y=funnel_data['Stage'],
-        x=funnel_data['Count'],
-        text=funnel_text,
-        textposition="inside",
-        textfont=dict(size=12, color="white"),
-        marker=dict(
-            color=funnel_data['Percentage'],
-            colorscale='Viridis',
-            line=dict(width=4, color="white"),
-            showscale=True,
-            colorbar=dict(title="% of Initial")
-        )
-    ))
+    # Create horizontal bar chart - all stages will be clearly visible
+    fig_funnel = go.Figure()
+    
+    # Add bars for each stage
+    for idx, row in funnel_data_display.iterrows():
+        fig_funnel.add_trace(go.Bar(
+            x=[row['Count']],
+            y=[row['Stage']],
+            orientation='h',
+            text=funnel_text[idx],
+            textposition='inside',
+            textfont=dict(size=15, color="white", family="Arial Black"),
+            marker=dict(
+                color=colors_list[idx],
+                line=dict(width=2, color="white"),
+                opacity=0.8
+            ),
+            name=row['Stage'],
+            showlegend=False,
+            width=0.6,
+            hovertemplate=f"<b>{row['Stage']}</b><br>" +
+                         f"Count: {row['Count']:,.0f}<br>" +
+                         f"% of Initial: {row['Percentage']:.2f}%<br>" +
+                         f"Conversion Rate: {row['Conversion_Rate']:.2f}%<extra></extra>"
+        ))
+    
+    # Update layout for better visibility
     fig_funnel.update_layout(
-        title='Conversion Funnel - Shows progression from Impressions to Submissions',
+        
+        xaxis=dict(
+            title=dict(text="Count", font=dict(size=14)),
+            showgrid=True,
+            gridcolor='lightgray',
+            type='log'  # Use log scale so all values are visible
+        ),
+        yaxis=dict(
+            title="",
+            showgrid=False,
+            categoryorder='array',
+            categoryarray=funnel_data_display['Stage'].tolist()[::-1]  # Reverse order: Impressions at top, RFI Submits at bottom
+        ),
         height=500,
         showlegend=False,
-        font=dict(size=12)
+        font=dict(size=14),
+        margin=dict(l=180, r=50, t=80, b=50),
+        plot_bgcolor='white',
+        paper_bgcolor='white'
     )
+    
     st.plotly_chart(fig_funnel, use_container_width=True)
+    
+    # Add info about log scale
+    st.info("💡 **Note:** The x-axis uses a logarithmic scale to ensure all stages are clearly visible despite the large difference in values.")
+    
+    # Display a summary table with all the data clearly visible
+    st.markdown("**Funnel Data Summary:**")
+    summary_table = pd.DataFrame({
+        'Stage': funnel_data['Stage'],
+        'Count': [f"{count:,.0f}" for count in funnel_data['Count']],
+        '% of Initial': [f"{pct:.2f}%" for pct in funnel_data['Percentage']],
+        'Conversion Rate': [f"{rate:.2f}%" if rate > 0 else "N/A" for rate in funnel_data['Conversion_Rate']]
+    })
+    st.dataframe(summary_table, use_container_width=True, hide_index=True)
     
     # Display conversion rates table
     st.markdown("**Conversion Rates Between Stages:**")
